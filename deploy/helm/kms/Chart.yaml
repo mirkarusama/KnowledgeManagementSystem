@@ -1,0 +1,6 @@
+apiVersion: v2
+name: kms
+description: Agentic Knowledge Management platform - agents, MCP servers, ingestion and web app
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

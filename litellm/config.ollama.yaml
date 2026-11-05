@@ -1,0 +1,26 @@
+# LAPTOP MODE - small open-weight models served by Ollama running natively on the Mac.
+#   ollama pull qwen3:4b      (answer writer,  ~2.5 GB)
+#   ollama pull qwen3:1.7b    (question router, ~1.4 GB)
+#   ollama pull bge-m3        (embeddings,      ~1.2 GB)
+# Same logical names as production, so the application code does not change.
+model_list:
+  - model_name: km-synth
+    litellm_params:
+      model: ollama_chat/qwen3:4b
+      api_base: http://host.docker.internal:11434
+      think: false
+      keep_alive: 30m
+  - model_name: km-router
+    litellm_params:
+      model: ollama_chat/qwen3:1.7b
+      api_base: http://host.docker.internal:11434
+      think: false
+  - model_name: km-embed
+    litellm_params:
+      model: ollama/bge-m3
+      api_base: http://host.docker.internal:11434
+litellm_settings:
+  drop_params: true
+  request_timeout: 300
+general_settings:
+  master_key: sk-kms-dev

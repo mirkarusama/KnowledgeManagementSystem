@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kms-config
+  labels: {{- include "kms.labels" . | nindent 4 }}
+data:
+{{- range $k, $v := .Values.config }}
+  {{ $k }}: {{ $v | quote }}
+{{- end }}
+---
+{{- if .Values.externalSecret.enabled }}
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: kms-secrets
+  labels: {{- include "kms.labels" . | nindent 4 }}
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: {{ .Values.externalSecret.secretStore }} }
+  target: { name: kms-secrets }
+  data:
+  {{- range .Values.externalSecret.keys }}
+    - secretKey: {{ . }}
+      remoteRef: { key: {{ $.Values.externalSecret.path }}, property: {{ . }} }
+  {{- end }}
+{{- end }}

@@ -1,0 +1,26 @@
+# OPENAI MODE - the gateway sends requests to OpenAI's cloud using YOUR API key.
+# The key is read from the OPENAI_API_KEY setting in .env (or Railway variables).
+# It is never written in this file.
+# Same logical names as the other modes, so the application code does not change.
+#
+# PRIVACY: in this mode the question AND the Confluence/Jira text used to answer it
+# are sent to OpenAI. Only use it with data you are allowed to send outside.
+model_list:
+  - model_name: km-synth          # writes the answers
+    litellm_params:
+      model: openai/gpt-4.1-mini
+      api_key: os.environ/OPENAI_API_KEY
+  - model_name: km-router         # sorts questions (Jira vs Confluence) - cheapest model
+    litellm_params:
+      model: openai/gpt-4.1-nano
+      api_key: os.environ/OPENAI_API_KEY
+  - model_name: km-embed          # turns text into "meaning numbers" for search
+    litellm_params:
+      model: openai/text-embedding-3-small
+      api_key: os.environ/OPENAI_API_KEY
+      dimensions: 1024            # matches KMS_EMBED_DIM=1024, so nothing else changes
+litellm_settings:
+  drop_params: true               # quietly drop settings a model does not support
+  request_timeout: 120
+general_settings:
+  master_key: sk-kms-dev

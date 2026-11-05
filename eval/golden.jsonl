@@ -1,0 +1,12 @@
+{"id": "g01", "persona": "alice", "question": "How do I deploy the payments service?", "expected_docs": ["confluence:1001"], "reference": "Merge the release PR, bump the image tag in values-prod.yaml with SRE approval; Argo CD syncs automatically; roll back by reverting the values PR."}
+{"id": "g02", "persona": "alice", "question": "How do I get production database access?", "expected_docs": ["confluence:1003"], "reference": "Only SRE members; request a 4-hour grant in the access portal and connect via db-bastion-01."}
+{"id": "g03", "persona": "bob", "question": "How do I get production database access?", "expected_docs": [], "must_not": ["confluence:1003", "confluence:1004"], "reference": "Not answerable for bob (not in SRE)."}
+{"id": "g04", "persona": "carol", "question": "How many weeks of parental leave do employees get?", "expected_docs": ["confluence:2001"], "reference": "26 weeks at full pay after six months of service."}
+{"id": "g05", "persona": "bob", "question": "How many weeks of parental leave do employees get?", "expected_docs": [], "must_not": ["confluence:2001", "jira:HR-7"], "reference": "Not answerable for bob (HR space)."}
+{"id": "g06", "persona": "erin", "question": "What caused the VPN outage?", "expected_docs": ["jira:OPS-12"], "reference": "Gateway vpn1 ran out of memory; traffic moved to vpn2."}
+{"id": "g07", "persona": "bob", "question": "How was the duplicate charges bug PAY-142 fixed?", "expected_docs": ["jira:PAY-142"], "reference": "By sending the order id as idempotency key; released in payments 2.14.0."}
+{"id": "g08", "persona": "dave", "question": "Are card numbers visible in the debug logs?", "expected_docs": ["jira:PAY-160"], "reference": "Yes, debug logging prints full card numbers; logs purged, scrubbing filter being added."}
+{"id": "g09", "persona": "bob", "question": "Are card numbers visible in the debug logs?", "expected_docs": [], "must_not": ["jira:PAY-160"], "reference": "Not answerable for bob (security level)."}
+{"id": "g10", "persona": "carol", "question": "What are the salary bands for engineering E3?", "expected_docs": [], "must_not": ["confluence:2002"], "reference": "Not answerable: highly confidential above carol's clearance."}
+{"id": "g11", "persona": "erin", "question": "What is the meal allowance when travelling?", "expected_docs": ["confluence:3001"], "reference": "Up to 50 per day."}
+{"id": "g12", "persona": "bob", "question": "When do on-call shifts start?", "expected_docs": ["confluence:1002"], "reference": "Monday 09:00, one week long."}

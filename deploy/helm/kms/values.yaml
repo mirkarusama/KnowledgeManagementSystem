@@ -1,0 +1,71 @@
+# Application layer of the KM platform. Platform services (Keycloak, Qdrant, PostgreSQL,
+# Valkey, OPA, LiteLLM, vLLM, TEI, Langfuse, Airflow, monitoring) are installed from their
+# own upstream charts - see deploy/platform/README.md.
+
+image:
+  backend: harbor.internal/kms/backend:0.1.0
+  web: harbor.internal/kms/web:0.1.0
+  pullPolicy: IfNotPresent
+
+# Non-secret settings (become the kms-config ConfigMap). Every key is documented in kms/config.py.
+config:
+  KMS_LLM_BASE_URL: http://litellm.kms-inference:4000/v1
+  KMS_QDRANT_URL: http://qdrant.kms-data:6333
+  KMS_VALKEY_URL: redis://valkey.kms-data:6379/0
+  KMS_OPA_URL: http://opa.kms-policy:8181
+  KMS_OIDC_ISSUER: https://sso.example.internal/realms/kms
+  KMS_OIDC_INTERNAL_URL: http://keycloak.kms-identity:8080/realms/kms
+  KMS_MCP_ATLASSIAN_URL: http://kms-mcp-atlassian:8000/mcp
+  KMS_CONFLUENCE_URL: https://confluence.example.internal
+  KMS_JIRA_URL: https://jira.example.internal
+  KMS_ATLASSIAN_DEPLOYMENT: datacenter
+  KMS_CONFIRM_MODE: exchange
+  KMS_CONFLUENCE_SPACES: ""
+  KMS_JIRA_PROJECTS: ""
+  KMS_RERANK_URL: http://tei-rerank.kms-inference/rerank
+  KMS_USE_DOCLING: "true"
+  KMS_USE_LLM_ROUTER: "true"
+  KMS_ALLOW_DEBUG_AUTH: "false"
+  KMS_LANGFUSE_HOST: http://langfuse-web.kms-observability:3000
+
+# Secret values come from OpenBao through External Secrets Operator (never stored in Git).
+externalSecret:
+  enabled: true
+  secretStore: openbao
+  path: kv/kms
+  keys: [KMS_POSTGRES_DSN, KMS_LLM_API_KEY, KMS_MCP_CLIENT_SECRET, KMS_ATLASSIAN_SERVICE_USER,
+         KMS_ATLASSIAN_SERVICE_TOKEN, KMS_WEBHOOK_SECRET, KMS_LANGFUSE_PUBLIC_KEY, KMS_LANGFUSE_SECRET_KEY]
+
+services:
+  agent-api:
+    command: ["uvicorn", "kms.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    port: 8000
+    replicas: 2
+    resources: { requests: { cpu: 500m, memory: 1Gi }, limits: { memory: 2Gi } }
+    hpa: { enabled: true, min: 2, max: 6, cpu: 70 }
+  mcp-atlassian:
+    command: ["uvicorn", "kms.mcp_servers.atlassian_server:app", "--host", "0.0.0.0", "--port", "8000"]
+    port: 8000
+    replicas: 2
+    resources: { requests: { cpu: 250m, memory: 512Mi }, limits: { memory: 1Gi } }
+    hpa: { enabled: true, min: 2, max: 6, cpu: 70 }
+  ingest-receiver:
+    command: ["uvicorn", "kms.ingest.receiver:app", "--host", "0.0.0.0", "--port", "8090"]
+    port: 8090
+    replicas: 2
+    resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { memory: 512Mi } }
+  ingest-worker:
+    command: ["kms", "worker"]
+    replicas: 2
+    resources: { requests: { cpu: 500m, memory: 1Gi }, limits: { memory: 4Gi } }
+
+web:
+  replicas: 2
+  apiUrl: https://kms-api.example.internal
+  oidcAuthority: https://sso.example.internal/realms/kms
+  host: kms.example.internal
+  apiHost: kms-api.example.internal
+
+ingress:
+  className: nginx
+  tls: true

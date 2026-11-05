@@ -1,0 +1,143 @@
+# Agentic KM pilot - laptop edition.
+#
+# Every box from the proposal's architecture diagram, sized to run on one machine.
+# Production uses the same containers on Kubernetes (see deploy/helm).
+#
+#   docker compose up -d --build      start everything
+#   docker compose ps                 see what is running
+#   docker compose logs -f agent-api  watch one service
+#   docker compose down               stop (data is kept)
+#   docker compose down -v            stop and wipe all data
+
+x-kms: &kms
+  build: .
+  image: kms-pilot/backend:0.1.0
+  restart: unless-stopped
+  env_file: .env
+  environment:
+    KMS_ALLOW_DEBUG_AUTH: ${KMS_ALLOW_DEBUG_AUTH:-true}
+  depends_on:
+    postgres: { condition: service_healthy }
+    qdrant: { condition: service_started }
+    valkey: { condition: service_started }
+
+services:
+  # ---------------------------------------------------------------- data
+  postgres:            # conversation memory (LangGraph checkpoints) + immutable audit log
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kms
+      POSTGRES_PASSWORD: kms
+      POSTGRES_DB: kms
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kms"]
+      interval: 5s
+      retries: 20
+
+  qdrant:              # the search index (meaning + keyword search, permission filters)
+    image: qdrant/qdrant:v1.19.0
+    restart: unless-stopped
+    volumes: [qdrant:/qdrant/storage]
+    ports: ["6333:6333"]
+
+  valkey:              # the job queue for re-indexing (Valkey Streams)
+    image: valkey/valkey:8.0-alpine
+    restart: unless-stopped
+    volumes: [valkey:/data]
+
+  # ---------------------------------------------------------------- identity & policy
+  keycloak:            # single sign-on; issues identity tokens; RFC 8693 token exchange
+    image: quay.io/keycloak/keycloak:26.2.5
+    restart: unless-stopped
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: http://localhost:8080
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      JAVA_OPTS_KC_HEAP: "-Xms256m -Xmx512m"
+    volumes:
+      - ./keycloak/realm-kms.json:/opt/keycloak/data/import/realm-kms.json:ro
+    ports: ["8080:8080"]
+
+  opa:                 # the rulebook (classification-label rules), every decision logged
+    image: openpolicyagent/opa:1.4.2-static
+    restart: unless-stopped
+    command: ["run", "--server", "--addr=0.0.0.0:8181", "--set=decision_logs.console=true", "/policies/kms.rego"]
+    volumes: ["./policies:/policies:ro"]
+    ports: ["8181:8181"]
+
+  # ---------------------------------------------------------------- models
+  litellm:             # model gateway: app asks for "km-synth", gateway decides which model answers
+    image: ghcr.io/berriai/litellm:main-v1.74.9-stable
+    restart: unless-stopped
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    environment:
+      LITELLM_MASTER_KEY: sk-kms-dev
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}   # only used by config.openai.yaml; set it in .env
+    volumes:
+      - ./litellm/${LITELLM_CONFIG:-config.demo.yaml}:/app/config.yaml:ro
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    ports: ["4000:4000"]
+
+  demo-llm:            # offline stand-in model: lets everything run before any model download
+    <<: *kms
+    depends_on: []
+    command: ["uvicorn", "kms.devtools.fake_llm:app", "--host", "0.0.0.0", "--port", "8000"]
+
+  # ---------------------------------------------------------------- sources (pretend Atlassian)
+  mock-atlassian:
+    <<: *kms
+    depends_on: []
+    command: ["uvicorn", "kms.mock_atlassian.app:app", "--host", "0.0.0.0", "--port", "9000"]
+    environment:
+      KMS_ALLOW_DEBUG_AUTH: ${KMS_ALLOW_DEBUG_AUTH:-true}
+      MOCK_WEBHOOK_URL: http://ingest-receiver:8090/webhooks
+    ports: ["9000:9000"]
+
+  # ---------------------------------------------------------------- the agents
+  mcp-atlassian:       # MCP server: Confluence + Jira tools, find-then-confirm
+    <<: *kms
+    command: ["uvicorn", "kms.mcp_servers.atlassian_server:app", "--host", "0.0.0.0", "--port", "8000"]
+
+  agent-api:           # LangGraph orchestrator + domain agents, streaming API
+    <<: *kms
+    command: ["uvicorn", "kms.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports: ["8088:8000"]
+
+  # ---------------------------------------------------------------- ingestion
+  ingest-receiver:     # webhook mail slot
+    <<: *kms
+    command: ["uvicorn", "kms.ingest.receiver:app", "--host", "0.0.0.0", "--port", "8090"]
+    ports: ["8090:8090"]
+
+  ingest-worker:       # re-indexes pages/tickets from the queue
+    <<: *kms
+    command: ["kms", "worker"]
+
+  scheduler:           # 15-min permission sync + nightly reconcile (Airflow does this in production)
+    <<: *kms
+    command: ["kms", "scheduler"]
+
+  # ---------------------------------------------------------------- user interface
+  web:
+    build: ./web
+    image: kms-pilot/web:0.1.0
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_OIDC_AUTHORITY: http://localhost:8080/realms/kms
+      NEXT_PUBLIC_OIDC_CLIENT_ID: kms-web
+      NEXT_PUBLIC_API_URL: http://localhost:8088
+    ports: ["3000:3000"]
+
+volumes:
+  pgdata:
+  qdrant:
+  valkey:

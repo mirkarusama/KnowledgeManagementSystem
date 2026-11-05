@@ -1,0 +1,21 @@
+# PRODUCTION (data centre, GPUs) - models served by vLLM, embeddings + rerank by TEI.
+# Final model choice comes from the Week 3 bake-off; swap names here only.
+model_list:
+  - model_name: km-synth
+    litellm_params: { model: hosted_vllm/openai/gpt-oss-120b, api_base: http://vllm-synth:8000/v1 }
+  - model_name: km-synth          # second replica / fallback
+    litellm_params: { model: hosted_vllm/Qwen/Qwen3-32B, api_base: http://vllm-synth-alt:8000/v1 }
+  - model_name: km-router
+    litellm_params: { model: hosted_vllm/Qwen/Qwen3-8B, api_base: http://vllm-router:8000/v1 }
+  - model_name: km-guard
+    litellm_params: { model: hosted_vllm/ibm-granite/granite-guardian-3.3-8b, api_base: http://vllm-guard:8000/v1 }
+  - model_name: km-embed
+    litellm_params: { model: openai/BAAI/bge-m3, api_base: http://tei-embed:80/v1, api_key: none }
+router_settings:
+  routing_strategy: least-busy
+  num_retries: 2
+  fallbacks: [{ "km-synth": ["km-router"] }]
+litellm_settings:
+  request_timeout: 120
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY

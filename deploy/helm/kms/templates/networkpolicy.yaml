@@ -1,0 +1,11 @@
+# Only the MCP servers and ingestion workers may leave the cluster (to reach Jira/Confluence).
+# Model inference has no egress at all (see deploy/platform/inference-netpol.yaml).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: kms-agent-api-egress }
+spec:
+  podSelector: { matchLabels: { app.kubernetes.io/name: kms-agent-api } }
+  policyTypes: [Egress]
+  egress:
+    - to: [{ namespaceSelector: {} }]   # in-cluster only: MCP, LiteLLM, PostgreSQL, OPA, Keycloak
+    - ports: [{ port: 53, protocol: UDP }, { port: 53, protocol: TCP }]

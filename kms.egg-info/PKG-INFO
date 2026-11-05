@@ -1,0 +1,38 @@
+Metadata-Version: 2.4
+Name: kms
+Version: 0.1.0
+Summary: Agentic Knowledge Management pilot: LangGraph + MCP, find-then-confirm access control
+Requires-Python: >=3.11
+Requires-Dist: langgraph==1.2.16
+Requires-Dist: langgraph-checkpoint-postgres==3.2.0
+Requires-Dist: langchain-mcp-adapters==0.3.2
+Requires-Dist: mcp==1.30.0
+Requires-Dist: langchain-openai==1.7.2
+Requires-Dist: langchain-core==1.6.12
+Requires-Dist: openai==3.35.1
+Requires-Dist: qdrant-client==1.19.1
+Requires-Dist: fastapi==0.153.0
+Requires-Dist: uvicorn[standard]==0.54.0
+Requires-Dist: pydantic-settings==2.16.1
+Requires-Dist: psycopg[binary]==3.2.13
+Requires-Dist: psycopg-pool==3.3.3
+Requires-Dist: redis==8.1.0
+Requires-Dist: pyjwt[crypto]==2.15.1
+Requires-Dist: httpx==0.28.1
+Requires-Dist: prometheus-client==0.26.0
+Requires-Dist: sse-starlette==3.5.0
+Provides-Extra: docling
+Requires-Dist: docling; extra == "docling"
+Provides-Extra: presidio
+Requires-Dist: presidio-analyzer; extra == "presidio"
+Requires-Dist: presidio-anonymizer; extra == "presidio"
+Provides-Extra: langfuse
+Requires-Dist: langfuse; extra == "langfuse"
+Provides-Extra: eval
+Requires-Dist: ragas; extra == "eval"
+Requires-Dist: deepeval; extra == "eval"
+Requires-Dist: datasets; extra == "eval"
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: pytest-asyncio; extra == "dev"
+Requires-Dist: fakeredis; extra == "dev"

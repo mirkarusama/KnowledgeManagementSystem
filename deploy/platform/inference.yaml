@@ -1,0 +1,102 @@
+# GPU inference (from Week 3). vLLM for chat models, TEI for embeddings + reranking.
+# Final model names come from the bake-off; LiteLLM (litellm/config.vllm.yaml) maps logical names to these.
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: vllm-synth, namespace: kms-inference }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: vllm-synth } }
+  template:
+    metadata: { labels: { app: vllm-synth } }
+    spec:
+      containers:
+        - name: vllm
+          image: harbor.internal/mirror/vllm/vllm-openai:v0.11.0
+          args: ["--model", "/models/gpt-oss-120b", "--served-model-name", "openai/gpt-oss-120b",
+                 "--max-model-len", "32768", "--gpu-memory-utilization", "0.92"]
+          resources: { limits: { nvidia.com/gpu: 1 } }
+          ports: [{ containerPort: 8000 }]
+          volumeMounts: [{ name: models, mountPath: /models, readOnly: true }]
+      volumes: [{ name: models, persistentVolumeClaim: { claimName: model-weights } }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: vllm-synth, namespace: kms-inference }
+spec: { selector: { app: vllm-synth }, ports: [{ port: 8000 }] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: vllm-router, namespace: kms-inference }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: vllm-router } }
+  template:
+    metadata: { labels: { app: vllm-router } }
+    spec:
+      containers:
+        - name: vllm
+          image: harbor.internal/mirror/vllm/vllm-openai:v0.11.0
+          args: ["--model", "/models/Qwen3-8B", "--served-model-name", "Qwen/Qwen3-8B", "--gpu-memory-utilization", "0.45"]
+          resources: { limits: { nvidia.com/gpu: 1 } }
+          volumeMounts: [{ name: models, mountPath: /models, readOnly: true }]
+      volumes: [{ name: models, persistentVolumeClaim: { claimName: model-weights } }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: vllm-router, namespace: kms-inference }
+spec: { selector: { app: vllm-router }, ports: [{ port: 8000 }] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: tei-embed, namespace: kms-inference }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: tei-embed } }
+  template:
+    metadata: { labels: { app: tei-embed } }
+    spec:
+      containers:
+        - name: tei
+          image: harbor.internal/mirror/huggingface/text-embeddings-inference:1.8
+          args: ["--model-id", "/models/bge-m3"]
+          resources: { limits: { nvidia.com/gpu: 1 } }
+          volumeMounts: [{ name: models, mountPath: /models, readOnly: true }]
+      volumes: [{ name: models, persistentVolumeClaim: { claimName: model-weights } }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: tei-embed, namespace: kms-inference }
+spec: { selector: { app: tei-embed }, ports: [{ port: 80 }] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: tei-rerank, namespace: kms-inference }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: tei-rerank } }
+  template:
+    metadata: { labels: { app: tei-rerank } }
+    spec:
+      containers:
+        - name: tei
+          image: harbor.internal/mirror/huggingface/text-embeddings-inference:1.8
+          args: ["--model-id", "/models/bge-reranker-v2-m3"]
+          resources: { limits: { nvidia.com/gpu: 1 } }
+          volumeMounts: [{ name: models, mountPath: /models, readOnly: true }]
+      volumes: [{ name: models, persistentVolumeClaim: { claimName: model-weights } }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: tei-rerank, namespace: kms-inference }
+spec: { selector: { app: tei-rerank }, ports: [{ port: 80 }] }
+---
+# Inference never talks to the internet.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: inference-no-egress, namespace: kms-inference }
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to: [{ namespaceSelector: {} }]
+    - ports: [{ port: 53, protocol: UDP }]

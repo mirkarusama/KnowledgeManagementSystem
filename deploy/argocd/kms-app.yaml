@@ -1,0 +1,20 @@
+# Argo CD keeps the cluster in sync with Git ("GitOps"): change a value in Git, Argo CD applies it.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kms
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://git.example.internal/kms/kms-pilot.git
+    targetRevision: main
+    path: deploy/helm/kms
+    helm:
+      valueFiles: [values.yaml]
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kms-agents
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true]

@@ -1,0 +1,11 @@
+# DEMO MODE - no model downloads. Logical names point at the offline stand-in model.
+# Answers are copied sentences from the sources, not real AI writing.
+model_list:
+  - model_name: km-synth
+    litellm_params: { model: openai/demo-chat, api_base: http://demo-llm:8000/v1, api_key: none }
+  - model_name: km-router
+    litellm_params: { model: openai/demo-chat, api_base: http://demo-llm:8000/v1, api_key: none }
+  - model_name: km-embed
+    litellm_params: { model: openai/demo-embed, api_base: http://demo-llm:8000/v1, api_key: none }
+general_settings:
+  master_key: sk-kms-dev
